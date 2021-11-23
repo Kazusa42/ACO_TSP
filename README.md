@@ -9,6 +9,7 @@ Focus on improvement and comparation.
 
 # IMPORTANT
 The format of input file should strictly follow the sample file.
-1. Any lines NOT include cities position should start with '#'
-2. Any lines include cities position should follow this format: city_id x_pos y_pos;
-3. Only 1 space mark between these 3 numbers
+1. Any lines NOT include cities position should start with '#'.
+2. Any lines include cities position should follow this format: city_id x_pos y_pos.
+3. Only 1 space mark between these 3 numbers.
+4. No space mark after y_pos and no empty line
