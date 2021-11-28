@@ -15,4 +15,4 @@ The format of input file should strictly follow the sample file.
 4. No space mark after y_pos and no empty line
 
 # For Berlin52
-1. 3 methods will convergence at about 1500 iterations (_step = 1500, colony_size = 5)
+1. 3 methods will convergence at about 1500 iterations (_step = 500, colony_size = 5)
