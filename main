@@ -1,6 +1,7 @@
 import math
 import random
 from matplotlib import pyplot as plt
+import collections
 
 POSITION_FILE_PATH = r'./Berlin52_Cities_Position.txt'
 
@@ -157,7 +158,7 @@ class SolveTSPUsingACO:
         # print('Ended : {0}'.format(self.mode))
         # print('Sequence : <- {0} ->'.format(' - '.join(str(self.labels[i]) for i in self.global_best_tour)))
         result_list.append(self.global_best_distance)
-        # print('Total distance travelled to complete the tour : {0}\n'.format(round(self.global_best_distance, 2)))
+        print('Total distance travelled to complete the tour : {0}\n'.format(round(self.global_best_distance, 2)))
 
     def plot(self, line_width=1, point_radius=math.sqrt(2.0), annotation_size=8, dpi=120, save=True, name=None):
         x = [self.nodes[i][0] for i in self.global_best_tour]
@@ -182,12 +183,13 @@ class SolveTSPUsingACO:
 
 if __name__ == '__main__':
     evaluate = 1
-    eva_colony_size = 1
-    eva_convergence_speed = 0
+    eva_colony_size = 0
+    eva_convergence_speed = 1
 
     result_acs = []
     result_elitist = []
     result_maxmin = []
+    result_elitist_improv = []
 
     _nodes = []
     with open(POSITION_FILE_PATH, 'r') as f:
@@ -198,12 +200,17 @@ if __name__ == '__main__':
                 _nodes.append((x, y))
 
     if not evaluate:
-        _colony_size = 5
-        _steps = 2000
+        _colony_size = 20
+        _steps = 800
 
-        acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_steps, nodes=_nodes)
-        acs.run(result_acs)
+        # acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_steps, nodes=_nodes)
+        # acs.run(result_acs)
         # acs.plot()
+
+        elitist_improv = SolveTSPUsingACO(mode='Elitist_Improved', colony_size=_colony_size, rho=0.5,
+                                          steps=_steps, nodes=_nodes)
+        elitist_improv.run(result_elitist_improv)
+        elitist_improv.plot()
 
         flag = 0
         if flag:
@@ -215,46 +222,59 @@ if __name__ == '__main__':
             max_min.plot()
 
     if eva_convergence_speed:
-        _colony_size = 5
-        _steps = [i for i in range(1, 2000, 20)]
+        print('Start convergence speed evaluate.\n')
+        _colony_size = 20
+        _steps = [i for i in range(1, 500, 20)]
 
         for _step in _steps:
             print(_step)
-            acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            acs.run(result_acs)
-            elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            elitist.run(result_elitist)
-            max_min = SolveTSPUsingACO(mode='MaxMin', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            max_min.run(result_maxmin)
-        plt.plot(_steps, result_acs, 'b', label='acs', linewidth=1)
-        plt.plot(_steps, result_elitist, 'r', label='elitisi', linewidth=1)
+            # acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_step, nodes=_nodes)
+            # acs.run(result_acs)
+            if 1:
+                elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=_step, nodes=_nodes)
+                elitist.run(result_elitist)
+                max_min = SolveTSPUsingACO(mode='MaxMin', colony_size=_colony_size, steps=_step, nodes=_nodes)
+                max_min.run(result_maxmin)
+            elitist_improv = SolveTSPUsingACO(mode='Elitist_Improved', colony_size=_colony_size, rho=0.5,
+                                              steps=_step, nodes=_nodes)
+            elitist_improv.run(result_elitist_improv)
+        # plt.plot(_steps, result_acs, 'b', label='acs', linewidth=1)
+        plt.plot(_steps, result_elitist, 'r', label='elitist', linewidth=1)
         plt.plot(_steps, result_maxmin, 'c', label='maxmin', linewidth=1)
+        plt.plot(_steps, result_elitist_improv, 'b', label='elitist_improved', linewidth=1)
         plt.xscale('log')
         plt.xlabel(xlabel='Iteration', fontsize=18, fontfamily='Times New Roman')
         plt.ylabel(ylabel='Total distance', fontsize=18, fontfamily='Times New Roman')
         plt.legend()
         plt.show()
+        # plt.savefig('./convSpeedRes.jpg')
 
     if eva_colony_size:
-        _colony_sizes = [i for i in range(1, 20)]
-        _step = 1500
+        print('Start colony evaluate.\n')
+        result_acs = []
+        result_elitist = []
+        result_maxmin = []
+
+        _colony_sizes = [i for i in range(1, 70, 2)]
+        _step = 200
 
         for _colony_size in _colony_sizes:
             print(_colony_size)
-            acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            acs.run(result_acs)
+            # acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_step, nodes=_nodes)
+            # acs.run(result_acs)
 
-            elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            elitist.run(result_elitist)
+            # elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=_step, nodes=_nodes)
+            # elitist.run(result_elitist)
 
             max_min = SolveTSPUsingACO(mode='MaxMin', colony_size=_colony_size, steps=_step, nodes=_nodes)
             max_min.run(result_maxmin)
 
-        plt.plot(_colony_sizes, result_acs, 'b', label='acs', linewidth=1)
-        plt.plot(_colony_sizes, result_elitist, 'r', label='elitisi', linewidth=1)
+        # plt.plot(_colony_sizes, result_acs, 'b', label='acs', linewidth=1)
+        # plt.plot(_colony_sizes, result_elitist, 'r', label='elitisi', linewidth=1)
         plt.plot(_colony_sizes, result_maxmin, 'c', label='maxmin', linewidth=1)
-        plt.xscale('log')
+        # plt.xscale('log')
         plt.xlabel(xlabel='colony_size', fontsize=18, fontfamily='Times New Roman')
         plt.ylabel(ylabel='Total distance', fontsize=18, fontfamily='Times New Roman')
         plt.legend()
         plt.show()
+        # plt.savefig('./colonyRes.jpg')
