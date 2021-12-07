@@ -1,0 +1,56 @@
+    # the most simple way
+    def _elitist_improve1(self):
+        for step in range(self.steps):
+            for ant in self.ants:
+                self._add_pheromone(ant.find_tour(), ant.get_distance())
+                if ant.distance < self.global_best_distance:
+                    self.global_best_tour = ant.tour
+                    self.global_best_distance = ant.distance
+                    self._add_pheromone(self.global_best_tour, self.global_best_distance, weight=self.elitist_weight)
+            for i in range(self.num_nodes):
+                for j in range(i + 1, self.num_nodes):
+                    self.edges[i][j].pheromone *= (1.0 - self.rho)
+    
+    # cube dynamic weight
+    def _elitist_improve2(self):
+        for step in range(self.steps):
+            for ant in self.ants:
+                tour = ant.find_tour()
+                distance = ant.get_distance()
+                if step < self.steps * 0.1:
+                    if self.global_best_distance == float('inf'):
+                        rate = 1.0
+                    else:
+                        rate = (self.global_best_distance / distance) ** 3
+                    self._add_pheromone(tour, distance, rate)
+                else:
+                    self._add_pheromone(tour, distance)
+                if ant.distance < self.global_best_distance:
+                    self.global_best_tour = ant.tour
+                    self.global_best_distance = ant.distance
+            self._add_pheromone(self.global_best_tour, self.global_best_distance, weight=self.elitist_weight)
+            for i in range(self.num_nodes):
+                for j in range(i + 1, self.num_nodes):
+                    self.edges[i][j].pheromone *= (1.0 - self.rho)
+    
+    # exp dynamic weight
+    def _elitist_improve3(self):
+        for step in range(self.steps):
+            for ant in self.ants:
+                tour = ant.find_tour()
+                distance = ant.get_distance()
+                if step < self.steps * 0.1:
+                    if self.global_best_distance == float('inf'):
+                        rate = 1.0
+                    else:
+                        rate = math.exp(self.global_best_distance / distance - 1)
+                    self._add_pheromone(tour, distance, rate)
+                else:
+                    self._add_pheromone(tour, distance)
+                if ant.distance < self.global_best_distance:
+                    self.global_best_tour = ant.tour
+                    self.global_best_distance = ant.distance
+            self._add_pheromone(self.global_best_tour, self.global_best_distance, weight=self.elitist_weight)
+            for i in range(self.num_nodes):
+                for j in range(i + 1, self.num_nodes):
+                    self.edges[i][j].pheromone *= (1.0 - self.rho)
