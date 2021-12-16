@@ -1,9 +1,8 @@
 import math
 import random
 from matplotlib import pyplot as plt
-import collections
 
-POSITION_FILE_PATH = r'./Berlin52_Cities_Position.txt'
+POSITION_FILE_PATH = r'./Bier127_Cities_position.txt'
 
 
 class SolveTSPUsingACO:
@@ -83,42 +82,50 @@ class SolveTSPUsingACO:
         for i in range(self.num_nodes):
             self.edges[tour[i]][tour[(i + 1) % self.num_nodes]].pheromone += weight * pheromone_to_add
 
-    def _acs(self):
+    def _acs(self, result_list):
         for step in range(self.steps):
             for ant in self.ants:
                 self._add_pheromone(ant.find_tour(), ant.get_distance())
                 if ant.distance < self.global_best_distance:
                     self.global_best_tour = ant.tour
                     self.global_best_distance = ant.distance
+            result_list.append(self.global_best_distance)
             for i in range(self.num_nodes):
                 for j in range(i + 1, self.num_nodes):
                     self.edges[i][j].pheromone *= (1.0 - self.rho)
 
-    def _elitist(self):
+    def _acs_exp(self, result_list):
+        for step in range(self.steps):
+            for ant in self.ants:
+                tour = ant.find_tour()
+                distance = ant.get_distance()
+                if self.global_best_distance == float('inf'):
+                    rate = 1.0
+                else:
+                    rate = math.exp(self.global_best_distance / distance - 1)
+                self._add_pheromone(tour, distance, rate)
+                if ant.distance < self.global_best_distance:
+                    self.global_best_tour = ant.tour
+                    self.global_best_distance = ant.distance
+            result_list.append(self.global_best_distance)
+            for i in range(self.num_nodes):
+                for j in range(i + 1, self.num_nodes):
+                    self.edges[i][j].pheromone *= (1.0 - self.rho)
+
+    def _elitist(self, result_list):
         for step in range(self.steps):
             for ant in self.ants:
                 self._add_pheromone(ant.find_tour(), ant.get_distance())
                 if ant.distance < self.global_best_distance:
                     self.global_best_tour = ant.tour
                     self.global_best_distance = ant.distance
+            result_list.append(self.global_best_distance)
             self._add_pheromone(self.global_best_tour, self.global_best_distance, weight=self.elitist_weight)
             for i in range(self.num_nodes):
                 for j in range(i + 1, self.num_nodes):
                     self.edges[i][j].pheromone *= (1.0 - self.rho)
 
-    def _elitist_improve(self):
-        for step in range(self.steps):
-            for ant in self.ants:
-                self._add_pheromone(ant.find_tour(), ant.get_distance())
-                if ant.distance < self.global_best_distance:
-                    self.global_best_tour = ant.tour
-                    self.global_best_distance = ant.distance
-            self._add_pheromone(self.global_best_tour, self.global_best_distance, weight=self.elitist_weight)
-            for i in range(self.num_nodes):
-                for j in range(i + 1, self.num_nodes):
-                    self.edges[i][j].pheromone *= (1.0 - self.rho)
-
-    def _max_min(self):
+    def _max_min(self, result_list):
         for step in range(self.steps):
             iteration_best_tour = None
             iteration_best_distance = float("inf")
@@ -127,7 +134,7 @@ class SolveTSPUsingACO:
                 if ant.get_distance() < iteration_best_distance:
                     iteration_best_tour = ant.tour
                     iteration_best_distance = ant.distance
-            if float(step + 1) / float(self.steps) <= 0.75:
+            if float(step + 1) / float(self.steps) <= 0.2:
                 self._add_pheromone(iteration_best_tour, iteration_best_distance)
                 max_pheromone = self.pheromone_deposit_weight / iteration_best_distance
             else:
@@ -136,6 +143,7 @@ class SolveTSPUsingACO:
                     self.global_best_distance = iteration_best_distance
                 self._add_pheromone(self.global_best_tour, self.global_best_distance)
                 max_pheromone = self.pheromone_deposit_weight / self.global_best_distance
+            result_list.append(self.global_best_distance)
             min_pheromone = max_pheromone * self.min_scaling_factor
             for i in range(self.num_nodes):
                 for j in range(i + 1, self.num_nodes):
@@ -148,16 +156,17 @@ class SolveTSPUsingACO:
     def run(self, result_list):
         print('Started : {0}'.format(self.mode))
         if self.mode == 'ACS':
-            self._acs()
+            self._acs(result_list)
         elif self.mode == 'Elitist':
-            self._elitist()
-        elif self.mode == 'Elitist_Improved':
-            self._elitist_improve()
+            self._elitist(result_list)
+        elif self.mode == 'ACS_EXP':
+            self._acs_exp(result_list)
+        elif self.mode == 'ACS_CUBE':
+            self._acs_exp(result_list)
         else:
-            self._max_min()
+            self._max_min(result_list)
         # print('Ended : {0}'.format(self.mode))
         # print('Sequence : <- {0} ->'.format(' - '.join(str(self.labels[i]) for i in self.global_best_tour)))
-        result_list.append(self.global_best_distance)
         print('Total distance travelled to complete the tour : {0}\n'.format(round(self.global_best_distance, 2)))
 
     def plot(self, line_width=1, point_radius=math.sqrt(2.0), annotation_size=8, dpi=120, save=True, name=None):
@@ -183,13 +192,15 @@ class SolveTSPUsingACO:
 
 if __name__ == '__main__':
     evaluate = 1
-    eva_colony_size = 0
+    eva_stable = 0
     eva_convergence_speed = 1
 
     result_acs = []
     result_elitist = []
     result_maxmin = []
-    result_elitist_improv = []
+
+    result_acs_exp = []
+    result_acs_cube = []
 
     _nodes = []
     with open(POSITION_FILE_PATH, 'r') as f:
@@ -200,17 +211,12 @@ if __name__ == '__main__':
                 _nodes.append((x, y))
 
     if not evaluate:
-        _colony_size = 20
-        _steps = 800
+        _colony_size = 10
+        _steps = 500
 
         # acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_steps, nodes=_nodes)
         # acs.run(result_acs)
         # acs.plot()
-
-        elitist_improv = SolveTSPUsingACO(mode='Elitist_Improved', colony_size=_colony_size, rho=0.5,
-                                          steps=_steps, nodes=_nodes)
-        elitist_improv.run(result_elitist_improv)
-        elitist_improv.plot()
 
         flag = 0
         if flag:
@@ -223,58 +229,49 @@ if __name__ == '__main__':
 
     if eva_convergence_speed:
         print('Start convergence speed evaluate.\n')
-        _colony_size = 20
-        _steps = [i for i in range(1, 500, 20)]
+        _colony_size = 15
 
+        _steps1 = [i for i in range(1, 101, 10)]
+        _steps2 = [i for i in range(102, 513, 25)]
+        # _steps = _steps1 + _steps2
+
+        _steps = [i for i in range(1000)]
+        '''
         for _step in _steps:
             print(_step)
-            # acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            # acs.run(result_acs)
-            if 1:
-                elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=_step, nodes=_nodes)
-                elitist.run(result_elitist)
+            acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=500, nodes=_nodes)
+            acs.run(result_acs)
+            if 0:
+                # elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=_step, nodes=_nodes)
+                # elitist.run(result_elitist)
                 max_min = SolveTSPUsingACO(mode='MaxMin', colony_size=_colony_size, steps=_step, nodes=_nodes)
                 max_min.run(result_maxmin)
-            elitist_improv = SolveTSPUsingACO(mode='Elitist_Improved', colony_size=_colony_size, rho=0.5,
-                                              steps=_step, nodes=_nodes)
-            elitist_improv.run(result_elitist_improv)
-        # plt.plot(_steps, result_acs, 'b', label='acs', linewidth=1)
-        plt.plot(_steps, result_elitist, 'r', label='elitist', linewidth=1)
-        plt.plot(_steps, result_maxmin, 'c', label='maxmin', linewidth=1)
-        plt.plot(_steps, result_elitist_improv, 'b', label='elitist_improved', linewidth=1)
-        plt.xscale('log')
-        plt.xlabel(xlabel='Iteration', fontsize=18, fontfamily='Times New Roman')
-        plt.ylabel(ylabel='Total distance', fontsize=18, fontfamily='Times New Roman')
-        plt.legend()
-        plt.show()
-        # plt.savefig('./convSpeedRes.jpg')
+        '''
+        acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=1000, nodes=_nodes)
+        acs.run(result_acs)
+        '''
+        acs_exp = SolveTSPUsingACO(mode='ACS_EXP', colony_size=_colony_size, steps=500, nodes=_nodes)
+        acs_exp.run(result_acs_exp)
+        acs_cube = SolveTSPUsingACO(mode='ACS_CUBE', colony_size=_colony_size, steps=500, nodes=_nodes)
+        acs_cube.run(result_acs_cube)
 
-    if eva_colony_size:
-        print('Start colony evaluate.\n')
-        result_acs = []
-        result_elitist = []
-        result_maxmin = []
-
-        _colony_sizes = [i for i in range(1, 70, 2)]
-        _step = 200
-
-        for _colony_size in _colony_sizes:
-            print(_colony_size)
-            # acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            # acs.run(result_acs)
-
-            # elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            # elitist.run(result_elitist)
-
-            max_min = SolveTSPUsingACO(mode='MaxMin', colony_size=_colony_size, steps=_step, nodes=_nodes)
-            max_min.run(result_maxmin)
-
-        # plt.plot(_colony_sizes, result_acs, 'b', label='acs', linewidth=1)
-        # plt.plot(_colony_sizes, result_elitist, 'r', label='elitisi', linewidth=1)
-        plt.plot(_colony_sizes, result_maxmin, 'c', label='maxmin', linewidth=1)
+        elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=500, nodes=_nodes)
+        elitist.run(result_elitist)
+        max_min = SolveTSPUsingACO(mode='MaxMin', colony_size=_colony_size, steps=500, nodes=_nodes)
+        max_min.run(result_maxmin)
+        '''
+        plt.plot(_steps, result_acs, color='#708090', label='acs', linewidth=1)
+        # plt.plot(_steps, result_elitist, color='#DC143C', label='elitist', linewidth=1)
+        # plt.plot(_steps, result_maxmin, color='#4169E1', label='maxmin', linewidth=1)
+        # plt.plot(_steps, result_acs_cube, '#DC143C', label='acs_cube', linewidth=1.5)
+        # plt.plot(_steps, result_acs_exp, '#4169E1', label='acs_exp', linewidth=1.5)
         # plt.xscale('log')
-        plt.xlabel(xlabel='colony_size', fontsize=18, fontfamily='Times New Roman')
-        plt.ylabel(ylabel='Total distance', fontsize=18, fontfamily='Times New Roman')
-        plt.legend()
+        plt.xlabel(xlabel='Iteration', fontsize=24)
+        plt.ylabel(ylabel='Global best distance', fontsize=24)
+        plt.legend(fontsize=16)
         plt.show()
-        # plt.savefig('./colonyRes.jpg')
+
+
+
+
+
