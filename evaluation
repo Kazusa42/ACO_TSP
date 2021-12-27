@@ -1,10 +1,8 @@
 import math
 import random
 from matplotlib import pyplot as plt
-import numpy as np
-import collections
 
-POSITION_FILE_PATH = r'./Bier127_Cities_position.txt'
+POSITION_FILE_PATH = r'./Berlin52_Cities_Position.txt'
 
 
 class SolveTSPUsingACO:
@@ -53,9 +51,11 @@ class SolveTSPUsingACO:
                 self.distance += self.edges[self.tour[i]][self.tour[(i + 1) % self.num_nodes]].weight
             return self.distance
 
-    def __init__(self, mode='ACS', colony_size=10, elitist_weight=1.0, min_scaling_factor=0.001, alpha=1.0, beta=3.0,
-                 rho=0.1, pheromone_deposit_weight=1.0, initial_pheromone=1.0, steps=100, nodes=None, labels=None):
-        self.mode = mode
+    def __init__(self, alg='ACS', model='cycle', colony_size=10, elitist_weight=1.0, min_scaling_factor=0.001,
+                 alpha=1.0, beta=3.0, rho=0.1, pheromone_deposit_weight=1.0, initial_pheromone=1.0,
+                 steps=100, nodes=None, labels=None):
+        self.alg = alg
+        self.model = model
         self.colony_size = colony_size
         self.elitist_weight = elitist_weight
         self.min_scaling_factor = min_scaling_factor
@@ -79,47 +79,97 @@ class SolveTSPUsingACO:
         self.global_best_tour = None
         self.global_best_distance = float("inf")
 
-    def _add_pheromone(self, tour, distance, weight=1.0):
+    # ant-cycle modle
+    def _add_pheromone_antcycle(self, tour, distance, weight=1.0):
         pheromone_to_add = self.pheromone_deposit_weight / distance
         for i in range(self.num_nodes):
             self.edges[tour[i]][tour[(i + 1) % self.num_nodes]].pheromone += weight * pheromone_to_add
 
-    def _acs(self):
+    # ant-density modle
+    def _add_pheromone_antdensity(self, tour, distance, weight=1.0):
+        pheromone_to_add = 1.0  # some constant number
+        for i in range(self.num_nodes):
+            self.edges[tour[i]][tour[(i + 1) % self.num_nodes]].pheromone += weight * pheromone_to_add
+
+    def _acs(self, result_list):
         for step in range(self.steps):
             for ant in self.ants:
-                self._add_pheromone(ant.find_tour(), ant.get_distance())
+                if self.model == 'cycle':
+                    self._add_pheromone_antcycle(ant.find_tour(), ant.get_distance())
+                else:
+                    self._add_pheromone_antdensity(ant.find_tour(), ant.get_distance())
                 if ant.distance < self.global_best_distance:
                     self.global_best_tour = ant.tour
                     self.global_best_distance = ant.distance
+            result_list.append(self.global_best_distance)
             for i in range(self.num_nodes):
                 for j in range(i + 1, self.num_nodes):
                     self.edges[i][j].pheromone *= (1.0 - self.rho)
 
-    def _elitist(self):
+    def _acs_exp(self, result_list):
         for step in range(self.steps):
             for ant in self.ants:
-                self._add_pheromone(ant.find_tour(), ant.get_distance())
+                tour = ant.find_tour()
+                distance = ant.get_distance()
+                if self.global_best_distance == float('inf'):
+                    rate = 1.0
+                else:
+                    rate = math.exp(self.global_best_distance / distance - 1)
+                if self.model == 'cycle':
+                    self._add_pheromone_antcycle(tour, distance, rate)
+                else:
+                    self._add_pheromone_antdensity(tour, distance, rate)
                 if ant.distance < self.global_best_distance:
                     self.global_best_tour = ant.tour
                     self.global_best_distance = ant.distance
-            self._add_pheromone(self.global_best_tour, self.global_best_distance, weight=self.elitist_weight)
+            result_list.append(self.global_best_distance)
             for i in range(self.num_nodes):
                 for j in range(i + 1, self.num_nodes):
                     self.edges[i][j].pheromone *= (1.0 - self.rho)
 
-    def _elitist_improve(self):
+    def _acs_cube(self, result_list):
         for step in range(self.steps):
             for ant in self.ants:
-                self._add_pheromone(ant.find_tour(), ant.get_distance())
+                tour = ant.find_tour()
+                distance = ant.get_distance()
+                if self.global_best_distance == float('inf'):
+                    rate = 1.0
+                else:
+                    rate = (self.global_best_distance / distance) ** 3
+                if self.model == 'cycle':
+                    self._add_pheromone_antcycle(tour, distance, rate)
+                else:
+                    self._add_pheromone_antdensity(tour, distance, rate)
                 if ant.distance < self.global_best_distance:
                     self.global_best_tour = ant.tour
                     self.global_best_distance = ant.distance
-            self._add_pheromone(self.global_best_tour, self.global_best_distance, weight=self.elitist_weight)
+            result_list.append(self.global_best_distance)
             for i in range(self.num_nodes):
                 for j in range(i + 1, self.num_nodes):
                     self.edges[i][j].pheromone *= (1.0 - self.rho)
 
-    def _max_min(self):
+    def _elitist(self, result_list):
+        for step in range(self.steps):
+            for ant in self.ants:
+                if self.model == 'cycle':
+                    self._add_pheromone_antcycle(ant.find_tour(), ant.get_distance())
+                else:
+                    self._add_pheromone_antdensity(ant.find_tour(), ant.get_distance())
+                if ant.distance < self.global_best_distance:
+                    self.global_best_tour = ant.tour
+                    self.global_best_distance = ant.distance
+            result_list.append(self.global_best_distance)
+            if self.model == 'cycle':
+                self._add_pheromone_antcycle(self.global_best_tour, self.global_best_distance,
+                                             weight=self.elitist_weight)
+            else:
+                self._add_pheromone_antdensity(self.global_best_tour, self.global_best_distance,
+                                               weight=self.elitist_weight)
+            for i in range(self.num_nodes):
+                for j in range(i + 1, self.num_nodes):
+                    self.edges[i][j].pheromone *= (1.0 - self.rho)
+
+    def _max_min(self, result_list):
         for step in range(self.steps):
             iteration_best_tour = None
             iteration_best_distance = float("inf")
@@ -128,15 +178,22 @@ class SolveTSPUsingACO:
                 if ant.get_distance() < iteration_best_distance:
                     iteration_best_tour = ant.tour
                     iteration_best_distance = ant.distance
-            if float(step + 1) / float(self.steps) <= 0.75:
-                self._add_pheromone(iteration_best_tour, iteration_best_distance)
+            if float(step + 1) / float(self.steps) <= 0.2:
+                if self.model == 'cycle':
+                    self._add_pheromone_antcycle(iteration_best_tour, iteration_best_distance)
+                else:
+                    self._add_pheromone_antdensity(iteration_best_tour, iteration_best_distance)
                 max_pheromone = self.pheromone_deposit_weight / iteration_best_distance
             else:
                 if iteration_best_distance < self.global_best_distance:
                     self.global_best_tour = iteration_best_tour
                     self.global_best_distance = iteration_best_distance
-                self._add_pheromone(self.global_best_tour, self.global_best_distance)
+                if self.model == 'cycle':
+                    self._add_pheromone_antcycle(self.global_best_tour, self.global_best_distance)
+                else:
+                    self._add_pheromone_antdensity(self.global_best_tour, self.global_best_distance)
                 max_pheromone = self.pheromone_deposit_weight / self.global_best_distance
+            result_list.append(self.global_best_distance)
             min_pheromone = max_pheromone * self.min_scaling_factor
             for i in range(self.num_nodes):
                 for j in range(i + 1, self.num_nodes):
@@ -147,19 +204,18 @@ class SolveTSPUsingACO:
                         self.edges[i][j].pheromone = min_pheromone
 
     def run(self, result_list):
-        # print('Started : {0}'.format(self.mode))
-        if self.mode == 'ACS':
-            self._acs()
-        elif self.mode == 'Elitist':
-            self._elitist()
-        elif self.mode == 'Elitist_Improved':
-            self._elitist_improve()
+        print('Started : {0}'.format(self.alg))
+        if self.alg == 'ACS':
+            self._acs(result_list)
+        elif self.alg == 'Elitist':
+            self._elitist(result_list)
+        elif self.alg == 'ACS_EXP':
+            self._acs_exp(result_list)
+        elif self.alg == 'ACS_CUBE':
+            self._acs_cube(result_list)
         else:
-            self._max_min()
-        # print('Ended : {0}'.format(self.mode))
-        # print('Sequence : <- {0} ->'.format(' - '.join(str(self.labels[i]) for i in self.global_best_tour)))
-        result_list.append(round(self.global_best_distance, 2))
-        # print('Total distance travelled to complete the tour : {0}\n'.format(round(self.global_best_distance, 2)))
+            self._max_min(result_list)
+        print('Total distance travelled to complete the tour : {0}\n'.format(round(self.global_best_distance, 2)))
 
     def plot(self, line_width=1, point_radius=math.sqrt(2.0), annotation_size=8, dpi=120, save=True, name=None):
         x = [self.nodes[i][0] for i in self.global_best_tour]
@@ -183,13 +239,6 @@ class SolveTSPUsingACO:
 
 
 if __name__ == '__main__':
-    _nodes = []
-    with open(POSITION_FILE_PATH, 'r') as f:
-        for line in f.readlines():
-            if line[0] != '#':
-                x = float(line.strip('\n').split(' ')[1])
-                y = float(line.strip('\n').split(' ')[2])
-                _nodes.append((x, y))
     result_acs = []
     result_elitist = []
     result_maxmin = []
@@ -197,35 +246,40 @@ if __name__ == '__main__':
     result_acs_exp = []
     result_acs_cube = []
 
-    print('Start stable evaluate')
+    _nodes = []
+    with open(POSITION_FILE_PATH, 'r') as f:
+        for line in f.readlines():
+            if line[0] != '#':
+                x = float(line.strip('\n').split(' ')[1])
+                y = float(line.strip('\n').split(' ')[2])
+                _nodes.append((x, y))
+
+    print('Draw global best distance in one epcho.\n')
     _colony_size = 15
-    epchos = [i for i in range(20)]
-    for epcho in epchos:
-        print('Epcho: ' + str(epcho))
-        acs = SolveTSPUsingACO(mode='ACS', colony_size=_colony_size, steps=500, nodes=_nodes)
-        acs.run(result_acs)
-        if 1:
-            acs_exp = SolveTSPUsingACO(mode='ACS_EXP', colony_size=_colony_size, steps=500, nodes=_nodes)
-            acs_exp.run(result_acs_exp)
-            acs_cube = SolveTSPUsingACO(mode='ACS_CUBE', colony_size=_colony_size, steps=500, nodes=_nodes)
-            acs_cube.run(result_acs_cube)
-            elitist = SolveTSPUsingACO(mode='Elitist', colony_size=_colony_size, steps=500, nodes=_nodes)
-            elitist.run(result_elitist)
-            max_min = SolveTSPUsingACO(mode='MaxMin', colony_size=_colony_size, steps=500, nodes=_nodes)
-            max_min.run(result_maxmin)
-    # print(len(result_acs))
+    iterations = 500
 
-    print("ACO: " + str(round(np.mean(result_acs), 2)) + " " + str(round(np.var(result_acs), 2)) + " " +
-          str(round(np.min(result_acs), 2)) + " " + str(round(np.max(result_acs), 2)))
+    _steps = [i for i in range(iterations)]
 
-    print("Elitist: " + str(round(np.mean(result_elitist), 2)) + str(round(np.var(result_elitist), 2)) + " " +
-          str(round(np.min(result_elitist), 2)) + " " + str(round(np.max(result_elitist), 2)))
+    acs = SolveTSPUsingACO(alg='ACS', colony_size=_colony_size, steps=iterations, nodes=_nodes)
+    acs.run(result_acs)
 
-    print("Max Min: " + str(round(np.mean(result_maxmin), 2)) + " " + str(round(np.var(result_maxmin), 2)) + " " +
-          str(round(np.min(result_maxmin), 2)) + " " + str(round(np.max(result_maxmin), 2)))
-
-    print("ACO_EXP: " + str(round(np.mean(result_acs_exp), 2)) + " " + str(round(np.var(result_acs_exp), 2)) + " " +
-          str(round(np.min(result_acs_exp), 2)) + " " + str(round(np.max(result_acs_exp), 2)))
-
-    print("ACO_CUBE: " + str(round(np.mean(result_acs_cube), 2)) + " " + str(round(np.var(result_acs_cube), 2)) + " " +
-          str(round(np.min(result_acs_cube), 2)) + " " + str(round(np.max(result_acs_cube), 2)))
+    acs_exp = SolveTSPUsingACO(alg='ACS_EXP', colony_size=_colony_size, steps=iterations, nodes=_nodes)
+    acs_exp.run(result_acs_exp)
+    acs_cube = SolveTSPUsingACO(alg='ACS_CUBE', colony_size=_colony_size, steps=iterations, nodes=_nodes)
+    acs_cube.run(result_acs_cube)
+    '''
+    elitist = SolveTSPUsingACO(alg='Elitist', colony_size=_colony_size, steps=steps, nodes=_nodes)
+    elitist.run(result_elitist)
+    max_min = SolveTSPUsingACO(alg='MaxMin', colony_size=_colony_size, steps=steps, nodes=_nodes)
+    max_min.run(result_maxmin)
+    '''
+    plt.plot(_steps, result_acs, color='#708090', label='acs', linewidth=1)
+    # plt.plot(_steps, result_elitist, color='#DC143C', label='elitist', linewidth=1)
+    # plt.plot(_steps, result_maxmin, color='#4169E1', label='maxmin', linewidth=1)
+    plt.plot(_steps, result_acs_cube, '#DC143C', label='acs_cube', linewidth=1.5)
+    plt.plot(_steps, result_acs_exp, '#4169E1', label='acs_exp', linewidth=1.5)
+    # plt.xscale('log')
+    plt.xlabel(xlabel='Iteration', fontsize=24)
+    plt.ylabel(ylabel='Global best distance', fontsize=24)
+    plt.legend(fontsize=16)
+    plt.show()
