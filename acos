@@ -99,6 +99,50 @@ class SolveTSPUsingACO:
                 for j in range(i + 1, self.num_nodes):
                     self.edges[i][j].pheromone *= (1.0 - self.rho)
 
+    def _acs_cube(self, epcho_mean, epcho_best):
+        for step in range(self.steps):
+            diss, tours = [], []
+            for ant in self.ants:
+                tour = ant.find_tour()
+                distance = ant.get_distance()
+                diss.append(distance)
+                tours.append(tour)
+            idxs = np.argsort(diss)
+            mean_dis = np.mean(diss)
+            for idx in idxs:
+                rate = (mean_dis / diss[idx]) ** 3
+                self._add_pheromone(tours[idx], diss[idx], rate)
+                if diss[idx] < self.global_best_distance:
+                    self.global_best_tour = tours[idx]
+                    self.global_best_distance = diss[idx]
+            epcho_best.append(self.global_best_distance)
+            epcho_mean.append(mean_dis)
+            for i in range(self.num_nodes):
+                for j in range(i + 1, self.num_nodes):
+                    self.edges[i][j].pheromone *= (1.0 - self.rho)
+
+    def _acs_exp(self, epcho_mean, epcho_best):
+        for step in range(self.steps):
+            diss, tours = [], []
+            for ant in self.ants:
+                tour = ant.find_tour()
+                distance = ant.get_distance()
+                diss.append(distance)
+                tours.append(tour)
+            idxs = np.argsort(diss)
+            mean_dis = np.mean(diss)
+            for idx in idxs:
+                rate = math.exp(mean_dis / diss[idx] - 1)
+                self._add_pheromone(tours[idx], diss[idx], rate)
+                if diss[idx] < self.global_best_distance:
+                    self.global_best_tour = tours[idx]
+                    self.global_best_distance = diss[idx]
+            epcho_best.append(self.global_best_distance)
+            epcho_mean.append(mean_dis)
+            for i in range(self.num_nodes):
+                for j in range(i + 1, self.num_nodes):
+                    self.edges[i][j].pheromone *= (1.0 - self.rho)
+
     def _elitist(self, epcho_mean, epcho_best):
         for step in range(self.steps):
             for ant in self.ants:
@@ -139,16 +183,20 @@ class SolveTSPUsingACO:
                         self.edges[i][j].pheromone = min_pheromone
 
     def run(self, result_list, epcho_mean, epcho_best):
-        print('Started : {0}'.format(self.mode))
+        # print('Started : {0}'.format(self.mode))
         if self.mode == 'ACS':
             self._acs(epcho_mean, epcho_best)
         elif self.mode == 'Elitist':
             self._elitist(epcho_mean, epcho_best)
+        elif self.mode == 'ACS_CUBE':
+            self._acs_cube(epcho_mean, epcho_best)
+        elif self.mode == 'ACS_EXP':
+            self._acs_exp(epcho_mean, epcho_best)
         else:
             self._max_min(epcho_mean, epcho_best)
         # print('Ended : {0}'.format(self.mode))
         result_list.append(self.global_best_distance)
-        print('Total distance travelled to complete the tour : {0}\n'.format(round(self.global_best_distance, 2)))
+        # print('Total distance travelled to complete the tour : {0}\n'.format(round(self.global_best_distance, 2)))
 
     def plot(self, line_width=1, point_radius=math.sqrt(2.0), annotation_size=8, dpi=120, save=True, name=None):
         x = [self.nodes[i][0] for i in self.global_best_tour]
